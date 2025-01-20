@@ -1,16 +1,17 @@
-import { useEffect, useState } from "react"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger
 } from "@/components/ui/collapsible"
+import google from "data-base64:~assets/google.png"
+import bing from "data-base64:~assets/bing.png"
 import { ChevronRight } from "lucide-react"
-
-import { TensorVectorStore } from "./storage/tensorStore"
+import { useEffect, useState } from "react"
+import localforage from "localforage"
 
 import "@/styles/style.css"
 
-// 定义书签项的类型
 type BookmarkItem = {
   id: string
   title: string
@@ -18,30 +19,12 @@ type BookmarkItem = {
   children?: BookmarkItem[]
 }
 
-type ProcessStatus = {
-  total: number
-  processed: number
-  status: "idle" | "processing" | "completed" | "error"
-}
-
 function IndexPopup() {
   const [bookmarks, setBookmarks] = useState<BookmarkItem[]>([])
-  const [processStatus, setProcessStatus] = useState<ProcessStatus>({
-    total: 0,
-    processed: 0,
-    status: "idle"
-  })
-  const [vectorStore, setVectorStore] = useState<TensorVectorStore | null>(null)
-
-  // 初始化向量存储
-  useEffect(() => {
-    const initVectorStore = async () => {
-      const store = new TensorVectorStore()
-      await store.initialize()
-      setVectorStore(store)
-    }
-    initVectorStore()
-  }, [])
+  const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set())
+  const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set())
+  const [searchKeyword, setSearchKeyword] = useState("")
+  const [searchEngine, setSearchEngine] = useState<"google" | "bing">("google")
 
   // 获取所有书签URL
   const getAllBookmarkUrls = (
@@ -59,147 +42,201 @@ function IndexPopup() {
     return urls
   }
 
-  // 处理书签内容
-  const processBookmarks = async () => {
-    if (!vectorStore) return
+  // 添加保存选中状态到 localforage 的函数
+  const saveSelectionState = async (urls: Set<string>, folders: Set<string>) => {
+    await localforage.setItem('selectedUrls', Array.from(urls))
+    await localforage.setItem('selectedFolders', Array.from(folders))
+  }
 
-    const bookmarkUrls = getAllBookmarkUrls(bookmarks)
-    console.log("处理的书签:", bookmarkUrls)
-
-    setProcessStatus({
-      total: bookmarkUrls.length,
-      processed: 0,
-      status: "processing"
-    })
-
+  // 从 localforage 加载选中状态
+  const loadSelectionState = async () => {
     try {
-      for (let i = 0; i < bookmarkUrls.length; i++) {
-        const { url, title } = bookmarkUrls[i]
+      const savedUrls = await localforage.getItem<string[]>('selectedUrls')
+      const savedFolders = await localforage.getItem<string[]>('selectedFolders')
 
-        try {
-          // 使用 chrome.tabs API 创建一个新标签页来获取内容
-          const tab = await chrome.tabs.create({ url, active: false })
-
-          // 等待页面加载完成
-          await new Promise<void>((resolve) => {
-            const listener = (tabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
-              if (tabId === tab.id && changeInfo.status === 'complete') {
-                chrome.tabs.onUpdated.removeListener(listener)
-                resolve()
-              }
-            }
-            chrome.tabs.onUpdated.addListener(listener)
-          })
-
-          // 注入并执行内容脚本
-          const [result] = await chrome.scripting.executeScript({
-            target: { tabId: tab.id! },
-            func: () => {
-              // 移除所有脚本和样式标签
-              const scripts = document.getElementsByTagName('script')
-              const styles = document.getElementsByTagName('style')
-              Array.from(scripts).forEach(script => script.remove())
-              Array.from(styles).forEach(style => style.remove())
-
-              // 获取主要内容
-              const content = document.body.innerText
-              return content.trim()
-            }
-          })
-
-          // 关闭标签页
-          await chrome.tabs.remove(tab.id!)
-
-          if (result?.result) {
-            // 添加到向量存储
-            await vectorStore.addDocument({
-              url,
-              title,
-              content: result.result
-            })
-          }
-
-          setProcessStatus((prev) => ({
-            ...prev,
-            processed: i + 1
-          }))
-        } catch (err) {
-          console.error(`处理书签 ${url} 时出错:`, err)
-          // 继续处理下一个书签
-          continue
-        }
+      if (savedUrls) {
+        setSelectedUrls(new Set(savedUrls))
       }
-
-      setProcessStatus((prev) => ({
-        ...prev,
-        status: "completed"
-      }))
+      if (savedFolders) {
+        setSelectedFolders(new Set(savedFolders))
+      }
     } catch (error) {
-      console.error("处理书签时出错:", error)
-      setProcessStatus((prev) => ({
-        ...prev,
-        status: "error"
-      }))
+      console.error('加载选中状态失败:', error)
     }
   }
 
+  // 修改初始化 useEffect
   useEffect(() => {
     // 获取所有书签
     chrome.bookmarks.getTree((bookmarkTreeNodes) => {
-      // 使用第一个根节点的子节点
       setBookmarks(bookmarkTreeNodes[0].children || [])
     })
+
+    // 加载保存的选中状态
+    loadSelectionState()
   }, [])
 
-  // 渲染进度状态
-  const renderStatus = () => {
-    if (processStatus.status === "idle") return null
+  // 修改处理搜索的函数
+  const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && searchKeyword.trim()) {
+      const siteQuery = Array.from(selectedUrls)
+        .map((url) => {
+          const domain = new URL(url).hostname
+          return `site:${domain}`
+        })
+        .join(" OR ")
 
-    return (
-      <div className="mt-4">
-        <p>
-          处理进度: {processStatus.processed} / {processStatus.total}
-        </p>
-        <p>
-          状态:{" "}
-          {processStatus.status === "processing"
-            ? "处理中..."
-            : processStatus.status === "completed"
-              ? "完成"
-              : processStatus.status === "error"
-                ? "出错"
-                : ""}
-        </p>
-      </div>
-    )
+      const searchQuery = `${searchKeyword} ${siteQuery}`
+      const searchUrl =
+        searchEngine === "google"
+          ? `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`
+          : `https://www.bing.com/search?q=${encodeURIComponent(searchQuery)}`
+
+      window.open(searchUrl, "_blank")
+    }
   }
 
-  // 修改渲染书签的函数
+  // 修改 handleCheckboxChange
+  const handleCheckboxChange = (url: string) => {
+    const newSelectedUrls = new Set(selectedUrls)
+    if (selectedUrls.has(url)) {
+      newSelectedUrls.delete(url)
+    } else {
+      newSelectedUrls.add(url)
+    }
+    setSelectedUrls(newSelectedUrls)
+    // 保存新的选中状态
+    saveSelectionState(newSelectedUrls, selectedFolders)
+  }
+
+  // 修改 handleFolderCheckboxChange
+  const handleFolderCheckboxChange = (
+    folderId: string,
+    children: BookmarkItem[]
+  ) => {
+    const newSelectedFolders = new Set(selectedFolders)
+    const newSelectedUrls = new Set(selectedUrls)
+
+    const updateFolderAndChildren = (
+      items: BookmarkItem[],
+      isSelected: boolean
+    ) => {
+      items.forEach((item) => {
+        if (item.children) {
+          // 如果是文件夹，更新文件夹状态并递归处理子项
+          if (isSelected) {
+            newSelectedFolders.add(item.id)
+          } else {
+            newSelectedFolders.delete(item.id)
+          }
+          updateFolderAndChildren(item.children, isSelected)
+        } else if (item.url) {
+          // 如果是书签，更新 URL 状态
+          if (isSelected) {
+            newSelectedUrls.add(item.url)
+          } else {
+            newSelectedUrls.delete(item.url)
+          }
+        }
+      })
+    }
+
+    const isSelected = !selectedFolders.has(folderId)
+    if (isSelected) {
+      newSelectedFolders.add(folderId)
+    } else {
+      newSelectedFolders.delete(folderId)
+    }
+
+    updateFolderAndChildren(children, isSelected)
+
+    setSelectedFolders(newSelectedFolders)
+    setSelectedUrls(newSelectedUrls)
+    // 保存新的选中状态
+    saveSelectionState(newSelectedUrls, newSelectedFolders)
+  }
+
+  // 修改 handleClearSelection
+  const handleClearSelection = () => {
+    setSelectedUrls(new Set())
+    setSelectedFolders(new Set())
+    // 清除保存的选中状态
+    saveSelectionState(new Set(), new Set())
+  }
+
+  // 添加检查文件夹是否应该被选中的函数
+  const shouldFolderBeSelected = (items: BookmarkItem[]): boolean => {
+    let hasUnselectedItem = false
+
+    for (const item of items) {
+      if (item.children) {
+        // 如果是文件夹，递归检查其子项
+        if (
+          !selectedFolders.has(item.id) ||
+          !shouldFolderBeSelected(item.children)
+        ) {
+          hasUnselectedItem = true
+          break
+        }
+      } else if (item.url) {
+        // 如果是书签，检查是否被选中
+        if (!selectedUrls.has(item.url)) {
+          hasUnselectedItem = true
+          break
+        }
+      }
+    }
+
+    return !hasUnselectedItem
+  }
+
+  // 修改渲染书签的函数，添加自动检查父文件夹状态的逻辑
   const renderBookmarks = (items: BookmarkItem[]) => {
     return (
       <div className="space-y-2">
         {items.map((item) => (
-          <div key={item.id} className="pl-2">
+          <div key={item.id}>
             {item.children ? (
-              <Collapsible>
+              <Collapsible className="mt-2">
                 <div className="flex gap-1 items-center">
                   <CollapsibleTrigger className="p-1 rounded-sm hover:bg-gray-100">
                     <ChevronRight className="w-4 h-4" />
                   </CollapsibleTrigger>
-                  <span className="font-medium text-gray-700">{item.title}</span>
+                  <Checkbox
+                    className="mr-2"
+                    checked={
+                      selectedFolders.has(item.id) ||
+                      shouldFolderBeSelected(item.children)
+                    }
+                    onCheckedChange={() =>
+                      handleFolderCheckboxChange(item.id, item.children || [])
+                    }
+                  />
+                  <span className="font-medium text-gray-700">
+                    {!item.title || item.title.trim() === ""
+                      ? "未命名"
+                      : item.title}
+                  </span>
                 </div>
-                <CollapsibleContent className="pl-4">
+                <CollapsibleContent className="pl-4 mt-2">
                   {renderBookmarks(item.children)}
                 </CollapsibleContent>
               </Collapsible>
             ) : (
-              <div className="flex gap-1 items-center pl-6">
+              <div className="flex gap-1 items-center pl-3">
+                <Checkbox
+                  checked={selectedUrls.has(item.url || "")}
+                  onCheckedChange={() => handleCheckboxChange(item.url || "")}
+                  className="mr-2"
+                />
                 <a
                   href={item.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-800 hover:underline">
-                  {item.title}
+                  className="block overflow-hidden text-blue-600 truncate whitespace-nowrap text-ellipsis hover:text-blue-800 hover:underline">
+                  {!item.title || item.title.trim() === ""
+                    ? item.url
+                    : item.title}
                 </a>
               </div>
             )}
@@ -211,16 +248,40 @@ function IndexPopup() {
 
   return (
     <div className="p-4 w-[400px] max-h-[600px] overflow-auto">
-      <button
-        className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600 disabled:bg-gray-400"
-        onClick={processBookmarks}
-        disabled={processStatus.status === "processing"}>
-        开始处理书签内容
-      </button>
-      {renderStatus()}
-      <div className="mt-4">
-        {renderBookmarks(bookmarks)}
+      <div className="mb-4 space-y-2">
+        <div className="flex gap-2 items-center">
+          <input
+            type="text"
+            value={searchKeyword}
+            onChange={(e) => setSearchKeyword(e.target.value)}
+            onKeyDown={handleSearch}
+            placeholder="输入关键词后按回车搜索..."
+            className="flex-1 p-2 rounded-md border"
+          />
+          <button
+            onClick={() => setSearchEngine("google")}
+            className={`p-2 rounded-md border ${
+              searchEngine === "google" ? "bg-blue-100 border-blue-300" : ""
+            }`}>
+            <img src={google} alt="Google" className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setSearchEngine("bing")}
+            className={`p-2 rounded-md border ${
+              searchEngine === "bing" ? "bg-blue-100 border-blue-300" : ""
+            }`}>
+            <img src={bing} alt="Bing" className="w-5 h-5" />
+          </button>
+          {(selectedUrls.size > 0 || selectedFolders.size > 0) && (
+            <button
+              onClick={handleClearSelection}
+              className="px-3 py-2 text-sm text-white bg-red-500 rounded-md hover:bg-red-600">
+              清空选择
+            </button>
+          )}
+        </div>
       </div>
+      <div>{renderBookmarks(bookmarks)}</div>
     </div>
   )
 }
