@@ -4,11 +4,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger
 } from "@/components/ui/collapsible"
-import google from "data-base64:~assets/google.png"
 import bing from "data-base64:~assets/bing.png"
+import google from "data-base64:~assets/google.png"
+import localforage from "localforage"
 import { ChevronRight } from "lucide-react"
 import { useEffect, useState } from "react"
-import localforage from "localforage"
 
 import "@/styles/style.css"
 
@@ -43,16 +43,20 @@ function IndexPopup() {
   }
 
   // 添加保存选中状态到 localforage 的函数
-  const saveSelectionState = async (urls: Set<string>, folders: Set<string>) => {
-    await localforage.setItem('selectedUrls', Array.from(urls))
-    await localforage.setItem('selectedFolders', Array.from(folders))
+  const saveSelectionState = async (
+    urls: Set<string>,
+    folders: Set<string>
+  ) => {
+    await localforage.setItem("selectedUrls", Array.from(urls))
+    await localforage.setItem("selectedFolders", Array.from(folders))
   }
 
   // 从 localforage 加载选中状态
   const loadSelectionState = async () => {
     try {
-      const savedUrls = await localforage.getItem<string[]>('selectedUrls')
-      const savedFolders = await localforage.getItem<string[]>('selectedFolders')
+      const savedUrls = await localforage.getItem<string[]>("selectedUrls")
+      const savedFolders =
+        await localforage.getItem<string[]>("selectedFolders")
 
       if (savedUrls) {
         setSelectedUrls(new Set(savedUrls))
@@ -61,7 +65,7 @@ function IndexPopup() {
         setSelectedFolders(new Set(savedFolders))
       }
     } catch (error) {
-      console.error('加载选中状态失败:', error)
+      console.error("加载选中状态失败:", error)
     }
   }
 
@@ -168,6 +172,10 @@ function IndexPopup() {
   const shouldFolderBeSelected = (items: BookmarkItem[]): boolean => {
     let hasUnselectedItem = false
 
+    if (items.length === 0) {
+      return false
+    }
+
     for (const item of items) {
       if (item.children) {
         // 如果是文件夹，递归检查其子项
@@ -208,6 +216,7 @@ function IndexPopup() {
                       selectedFolders.has(item.id) ||
                       shouldFolderBeSelected(item.children)
                     }
+                    disabled={item.children?.length === 0}
                     onCheckedChange={() =>
                       handleFolderCheckboxChange(item.id, item.children || [])
                     }

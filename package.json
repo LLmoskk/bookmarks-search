@@ -2,7 +2,7 @@
   "name": "favorites-search",
   "displayName": "Favorites search",
   "version": "0.0.1",
-  "description": "Vectorize website content based on browser favorites, and display relevant content from favorite websites on the web page when searching for keywords",
+  "description": "Keyword search Site-wide search based on browser favorites checked",
   "author": "1398145450@qq.com",
   "scripts": {
     "dev": "plasmo dev",
