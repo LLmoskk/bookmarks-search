@@ -23,6 +23,7 @@ function IndexPopup() {
   const [bookmarks, setBookmarks] = useState<BookmarkItem[]>([])
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set())
   const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set())
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [searchKeyword, setSearchKeyword] = useState("")
   const [searchEngine, setSearchEngine] = useState<"google" | "bing">("google")
 
@@ -42,21 +43,28 @@ function IndexPopup() {
     return urls
   }
 
-  // 添加保存选中状态到 localforage 的函数
+  // 添加保存展开状态的函数
+  const saveExpandedState = async (folders: Set<string>) => {
+    await localforage.setItem("expandedFolders", Array.from(folders))
+  }
+
+  // 修改 saveSelectionState 函数，同时保存展开状态
   const saveSelectionState = async (
     urls: Set<string>,
-    folders: Set<string>
+    folders: Set<string>,
+    expanded: Set<string>
   ) => {
     await localforage.setItem("selectedUrls", Array.from(urls))
     await localforage.setItem("selectedFolders", Array.from(folders))
+    await localforage.setItem("expandedFolders", Array.from(expanded))
   }
 
-  // 从 localforage 加载选中状态
+  // 修改 loadSelectionState 函数，加载展开状态
   const loadSelectionState = async () => {
     try {
       const savedUrls = await localforage.getItem<string[]>("selectedUrls")
-      const savedFolders =
-        await localforage.getItem<string[]>("selectedFolders")
+      const savedFolders = await localforage.getItem<string[]>("selectedFolders")
+      const savedExpanded = await localforage.getItem<string[]>("expandedFolders")
 
       if (savedUrls) {
         setSelectedUrls(new Set(savedUrls))
@@ -64,8 +72,11 @@ function IndexPopup() {
       if (savedFolders) {
         setSelectedFolders(new Set(savedFolders))
       }
+      if (savedExpanded) {
+        setExpandedFolders(new Set(savedExpanded))
+      }
     } catch (error) {
-      console.error("加载选中状态失败:", error)
+      console.error("加载状态失败:", error)
     }
   }
 
@@ -134,7 +145,7 @@ function IndexPopup() {
     }
     setSelectedUrls(newSelectedUrls)
     // 保存新的选中状态
-    saveSelectionState(newSelectedUrls, selectedFolders)
+    saveSelectionState(newSelectedUrls, selectedFolders, expandedFolders)
   }
 
   // 修改 handleFolderCheckboxChange
@@ -181,15 +192,26 @@ function IndexPopup() {
     setSelectedFolders(newSelectedFolders)
     setSelectedUrls(newSelectedUrls)
     // 保存新的选中状态
-    saveSelectionState(newSelectedUrls, newSelectedFolders)
+    saveSelectionState(newSelectedUrls, newSelectedFolders, expandedFolders)
   }
 
-  // 修改 handleClearSelection
+  // 添加处理折叠/展开的函数
+  const handleCollapsibleChange = (folderId: string, isOpen: boolean) => {
+    const newExpandedFolders = new Set(expandedFolders)
+    if (isOpen) {
+      newExpandedFolders.add(folderId)
+    } else {
+      newExpandedFolders.delete(folderId)
+    }
+    setExpandedFolders(newExpandedFolders)
+    saveExpandedState(newExpandedFolders)
+  }
+
+  // 修改 handleClearSelection，同时保留展开状态
   const handleClearSelection = () => {
     setSelectedUrls(new Set())
     setSelectedFolders(new Set())
-    // 清除保存的选中状态
-    saveSelectionState(new Set(), new Set())
+    saveSelectionState(new Set(), new Set(), expandedFolders)
   }
 
   // 添加检查文件夹是否应该被选中的函数
@@ -247,14 +269,18 @@ function IndexPopup() {
     return "indeterminate"
   }
 
-  // 修改渲染书签的函数，添加自动检查父文件夹状态的逻辑
+  // 修改渲染书签的函数，添加展开状态控制
   const renderBookmarks = (items: BookmarkItem[]) => {
     return (
       <div className="space-y-2">
         {items.map((item) => (
           <div key={item.id}>
             {item.children ? (
-              <Collapsible className="mt-2">
+              <Collapsible
+                className="mt-2"
+                open={expandedFolders.has(item.id)}
+                onOpenChange={(isOpen) => handleCollapsibleChange(item.id, isOpen)}
+              >
                 <div className="flex gap-1 items-center">
                   <CollapsibleTrigger className="p-1 rounded-sm hover:bg-gray-100">
                     <ChevronRight className="w-4 h-4" />
