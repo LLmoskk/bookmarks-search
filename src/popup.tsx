@@ -187,7 +187,6 @@ function IndexPopup() {
     setSelectedUrls(Array.from(urlSet))
   }
 
-  // 修改 handleFolderCheckboxChange
   const handleFolderCheckboxChange = (
     folderId: string,
     children: BookmarkItem[]
@@ -246,30 +245,6 @@ function IndexPopup() {
     setSelectedUrls([])
     setSelectedFolders([])
     saveSelectionState(new Set(), new Set(), new Set(expandedFolders))
-  }
-
-  // 添加检查文件夹是否应该被选中的函数
-  const shouldFolderBeSelected = (items: BookmarkItem[]): boolean => {
-    let hasUnselectedItem = false
-
-    for (const item of items) {
-      if (item.children) {
-        if (
-          !selectedFolders.includes(item.id) ||
-          !shouldFolderBeSelected(item.children)
-        ) {
-          hasUnselectedItem = true
-          break
-        }
-      } else if (item.url) {
-        if (!selectedUrls.includes(item.url)) {
-          hasUnselectedItem = true
-          break
-        }
-      }
-    }
-
-    return !hasUnselectedItem
   }
 
   const getFolderState = (items: BookmarkItem[]): boolean | "indeterminate" => {
