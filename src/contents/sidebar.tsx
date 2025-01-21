@@ -64,14 +64,6 @@ const Sidebar = () => {
   const [isExpanded, setIsExpanded] = useState(true)
   const [sidebarEnabled] = useStorage<boolean>("sidebarEnabled", true)
 
-  const getSearchKeyword = () => {
-    const searchParams = new URLSearchParams(window.location.search)
-    const keyword = searchParams.get("q")
-    if (keyword) {
-      setCurrentKeyword(keyword)
-    }
-  }
-
   const fetchSearchResults = async (
     keyword: string,
     allBookmarks: BookmarkItem[]
@@ -88,6 +80,7 @@ const Sidebar = () => {
         : "bing"
       const allUrl = allBookmarks.map((item) => item.url)
       const searchUrl = constructSearchUrl(keyword, new Set(allUrl), engine)
+      console.log("Sidebar ~ searchUrl:", searchUrl)
 
       // 使用消息传递来发送请求不然有 CORS
       const response = await sendToBackground({
@@ -142,9 +135,38 @@ const Sidebar = () => {
   }
 
   useEffect(() => {
-    getSearchKeyword()
-    fetchSearchResults(currentKeyword, allBookmarks)
+    console.log("currentKeyword", currentKeyword)
+    if (currentKeyword) {
+      fetchSearchResults(currentKeyword, allBookmarks)
+    }
   }, [currentKeyword, allBookmarks])
+
+  // 添加一个函数来从URL中提取搜索关键词
+  const extractKeywordFromUrl = () => {
+    const urlParams = new URLSearchParams(window.location.search)
+    return urlParams.get("q") || ""
+  }
+
+  // 监听URL变化
+  useEffect(() => {
+    // 初始化时获取关键词
+    setCurrentKeyword(extractKeywordFromUrl())
+
+    // 创建URL变化的监听函数
+    const handleUrlChange = () => {
+      const keyword = extractKeywordFromUrl()
+      console.log("hjy ~ handleUrlChange ~ keyword:", keyword)
+      setCurrentKeyword(keyword)
+    }
+
+    // 添加事件监听
+    window.addEventListener("popstate", handleUrlChange)
+
+    return () => {
+      // 清理事件监听
+      window.removeEventListener("popstate", handleUrlChange)
+    }
+  }, [])
 
   if (!sidebarEnabled) {
     return null
