@@ -4,7 +4,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger
 } from "@/components/ui/collapsible"
-import { Switch } from "@/components/ui/switch"
+// import { Switch } from "@/components/ui/switch"
 import bing from "data-base64:~assets/bing.png"
 import google from "data-base64:~assets/google.png"
 import { ChevronRight } from "lucide-react"
@@ -358,7 +358,7 @@ function IndexPopup() {
   return (
     <div className="p-4 w-[400px] max-h-[600px] overflow-auto">
       <div className="mb-4 space-y-2">
-        <div className="flex justify-between items-center mb-2">
+        {/* <div className="flex justify-between items-center mb-2">
           <label className="text-sm text-gray-600">
             搜索时在侧边栏同步基于全部收藏夹搜索
           </label>
@@ -366,7 +366,7 @@ function IndexPopup() {
             checked={sidebarEnabled}
             onCheckedChange={setSidebarEnabled}
           />
-        </div>
+        </div> */}
         <div className="flex gap-2 items-center">
           <input
             type="text"
