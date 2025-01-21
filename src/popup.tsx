@@ -6,11 +6,14 @@ import {
 } from "@/components/ui/collapsible"
 import bing from "data-base64:~assets/bing.png"
 import google from "data-base64:~assets/google.png"
-import localforage from "localforage"
 import { ChevronRight } from "lucide-react"
 import { useEffect, useState } from "react"
 
+import { useStorage } from "@plasmohq/storage/hook"
+
 import "@/styles/style.css"
+
+import { constructSearchUrl } from "./utils"
 
 type BookmarkItem = {
   id: string
@@ -27,6 +30,21 @@ function IndexPopup() {
   const [searchKeyword, setSearchKeyword] = useState("")
   const [searchEngine, setSearchEngine] = useState<"google" | "bing">("google")
   const [isComposing, setIsComposing] = useState(false)
+  const [persistedUrls, setPersistedUrls] = useStorage<string[]>(
+    "selectedUrls",
+    []
+  )
+  const [persistedFolders, setPersistedFolders] = useStorage<string[]>(
+    "selectedFolders",
+    []
+  )
+  const [persistedExpanded, setPersistedExpanded] = useStorage<string[]>(
+    "expandedFolders",
+    []
+  )
+  const [persistedBookmarks, setPersistedBookmarks] = useStorage<
+    { url: string; title: string }[]
+  >("allBookmarks", [])
 
   // 获取所有书签URL
   const getAllBookmarkUrls = (
@@ -35,7 +53,13 @@ function IndexPopup() {
     let urls: { url: string; title: string }[] = []
     items.forEach((item) => {
       if (item.url) {
-        urls.push({ url: item.url, title: item.title })
+        // 确保 URL 和标题都存在且有效
+        if (item.url.trim() && item.title) {
+          urls.push({
+            url: item.url,
+            title: item.title || item.url // 如果标题为空则使用 URL
+          })
+        }
       }
       if (item.children) {
         urls = urls.concat(getAllBookmarkUrls(item.children))
@@ -44,70 +68,51 @@ function IndexPopup() {
     return urls
   }
 
-  // 添加保存展开状态的函数
-  const saveExpandedState = async (folders: Set<string>) => {
-    await localforage.setItem("expandedFolders", Array.from(folders))
+  // 修改保存展开状态的函数
+  const saveExpandedState = (folders: Set<string>) => {
+    setPersistedExpanded(Array.from(folders))
   }
 
-  // 修改 saveSelectionState 函数，同时保存展开状态
-  const saveSelectionState = async (
+  // 修改保存选择状态的函数
+  const saveSelectionState = (
     urls: Set<string>,
     folders: Set<string>,
     expanded: Set<string>
   ) => {
-    await localforage.setItem("selectedUrls", Array.from(urls))
-    await localforage.setItem("selectedFolders", Array.from(folders))
-    await localforage.setItem("expandedFolders", Array.from(expanded))
+    setPersistedUrls(Array.from(urls))
+    setPersistedFolders(Array.from(folders))
+    setPersistedExpanded(Array.from(expanded))
   }
 
-  // 修改 loadSelectionState 函数，加载展开状态
-  const loadSelectionState = async () => {
-    try {
-      const savedUrls = await localforage.getItem<string[]>("selectedUrls")
-      const savedFolders = await localforage.getItem<string[]>("selectedFolders")
-      const savedExpanded = await localforage.getItem<string[]>("expandedFolders")
-
-      if (savedUrls) {
-        setSelectedUrls(new Set(savedUrls))
-      }
-      if (savedFolders) {
-        setSelectedFolders(new Set(savedFolders))
-      }
-      if (savedExpanded) {
-        setExpandedFolders(new Set(savedExpanded))
-      }
-    } catch (error) {
-      console.error("加载状态失败:", error)
+  useEffect(() => {
+    if (persistedUrls) {
+      setSelectedUrls(new Set(persistedUrls))
     }
-  }
+  }, [persistedUrls])
+
+  useEffect(() => {
+    if (persistedFolders) {
+      setSelectedFolders(new Set(persistedFolders))
+    }
+  }, [persistedFolders])
+
+  useEffect(() => {
+    if (persistedExpanded) {
+      setExpandedFolders(new Set(persistedExpanded))
+    }
+  }, [persistedExpanded])
 
   // 修改初始化 useEffect
   useEffect(() => {
-    // 获取所有书签
-    chrome.bookmarks.getTree((bookmarkTreeNodes) => {
-      setBookmarks(bookmarkTreeNodes[0].children || [])
+    chrome.bookmarks.getTree(async (bookmarkTreeNodes) => {
+      const bookmarkNodes = bookmarkTreeNodes[0].children || []
+      setBookmarks(bookmarkNodes)
+
+      // 获取所有书签 URL 并保存
+      const allBookmarks = getAllBookmarkUrls(bookmarkNodes)
+      setPersistedBookmarks(allBookmarks)
     })
-
-    // 加载保存的选中状态
-    loadSelectionState()
   }, [])
-
-  const constructSearchUrl = (
-    keyword: string,
-    selectedUrls: Set<string>,
-    engine: "google" | "bing"
-  ): string => {
-    const siteQuery = Array.from(selectedUrls)
-      .map((url) => {
-        const domain = new URL(url).hostname
-        return `site:${domain}`
-      })
-      .join(" OR ")
-    const searchQuery = `${keyword} ${siteQuery}`
-    return engine === "google"
-      ? `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`
-      : `https://www.bing.com/search?q=${encodeURIComponent(searchQuery)}`
-  }
 
   const executeSearch = (engine: "google" | "bing") => {
     if (searchKeyword.trim()) {
@@ -280,8 +285,9 @@ function IndexPopup() {
               <Collapsible
                 className="mt-2"
                 open={expandedFolders.has(item.id)}
-                onOpenChange={(isOpen) => handleCollapsibleChange(item.id, isOpen)}
-              >
+                onOpenChange={(isOpen) =>
+                  handleCollapsibleChange(item.id, isOpen)
+                }>
                 <div className="flex gap-1 items-center">
                   <CollapsibleTrigger className="p-1 rounded-sm hover:bg-gray-100">
                     <ChevronRight className="w-4 h-4" />
