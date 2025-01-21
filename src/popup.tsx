@@ -26,35 +26,38 @@ type BookmarkItem = {
 
 function IndexPopup() {
   const [bookmarks, setBookmarks] = useState<BookmarkItem[]>([])
-  const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set())
-  const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set())
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [searchKeyword, setSearchKeyword] = useState("")
   const [isComposing, setIsComposing] = useState(false)
+
   const storage = new Storage({
     area: "local"
   })
-  const [persistedUrls, setPersistedUrls] = useStorage(
+
+  // 直接使用 useStorage 替代原来的 useState + useStorage 组合 需要复原状态的都用 useStorage 来写
+  const [selectedUrls, setSelectedUrls] = useStorage<string[]>(
     {
       key: "selectedUrls",
       instance: storage
     },
     []
   )
-  const [persistedFolders, setPersistedFolders] = useStorage(
+
+  const [selectedFolders, setSelectedFolders] = useStorage<string[]>(
     {
       key: "selectedFolders",
       instance: storage
     },
     []
   )
-  const [expandedFoldersStorage, setPersistedExpanded] = useStorage(
+
+  const [expandedFolders, setExpandedFolders] = useStorage<string[]>(
     {
       key: "expandedFolders",
       instance: storage
     },
     []
   )
+
   const [allBookmarks, setAllBookmarks] = useStorage(
     {
       key: "allBookmarks",
@@ -102,39 +105,16 @@ function IndexPopup() {
     return urls.slice(0, 1000) // 限制最多保存1000个书签
   }
 
-  // 修改保存展开状态的函数
-  const saveExpandedState = (folders: Set<string>) => {
-    setPersistedExpanded(Array.from(folders))
-  }
-
   // 修改保存选择状态的函数
   const saveSelectionState = (
     urls: Set<string>,
     folders: Set<string>,
     expanded: Set<string>
   ) => {
-    setPersistedUrls(Array.from(urls))
-    setPersistedFolders(Array.from(folders))
-    setPersistedExpanded(Array.from(expanded))
+    setSelectedUrls(Array.from(urls))
+    setSelectedFolders(Array.from(folders))
+    setExpandedFolders(Array.from(expanded))
   }
-
-  useEffect(() => {
-    if (persistedUrls) {
-      setSelectedUrls(new Set(persistedUrls))
-    }
-  }, [persistedUrls])
-
-  useEffect(() => {
-    if (persistedFolders) {
-      setSelectedFolders(new Set(persistedFolders))
-    }
-  }, [persistedFolders])
-
-  useEffect(() => {
-    if (expandedFoldersStorage) {
-      setExpandedFolders(new Set(expandedFoldersStorage))
-    }
-  }, [expandedFoldersStorage])
 
   // 修改初始化 useEffect
   useEffect(() => {
@@ -167,7 +147,11 @@ function IndexPopup() {
 
   const executeSearch = (engine: "google" | "bing") => {
     if (searchKeyword.trim()) {
-      const searchUrl = constructSearchUrl(searchKeyword, selectedUrls, engine)
+      const searchUrl = constructSearchUrl(
+        searchKeyword,
+        new Set(selectedUrls),
+        engine
+      )
       window.open(searchUrl, "_blank")
     }
   }
@@ -176,7 +160,7 @@ function IndexPopup() {
     if (e.key === "Enter" && !isComposing && searchKeyword.trim()) {
       const searchUrl = constructSearchUrl(
         searchKeyword,
-        selectedUrls,
+        new Set(selectedUrls),
         searchEngine
       )
       window.open(searchUrl, "_blank")
@@ -194,15 +178,13 @@ function IndexPopup() {
 
   // 修改 handleCheckboxChange
   const handleCheckboxChange = (url: string) => {
-    const newSelectedUrls = new Set(selectedUrls)
-    if (selectedUrls.has(url)) {
-      newSelectedUrls.delete(url)
+    const urlSet = new Set(selectedUrls)
+    if (urlSet.has(url)) {
+      urlSet.delete(url)
     } else {
-      newSelectedUrls.add(url)
+      urlSet.add(url)
     }
-    setSelectedUrls(newSelectedUrls)
-    // 保存新的选中状态
-    saveSelectionState(newSelectedUrls, selectedFolders, expandedFolders)
+    setSelectedUrls(Array.from(urlSet))
   }
 
   // 修改 handleFolderCheckboxChange
@@ -210,8 +192,8 @@ function IndexPopup() {
     folderId: string,
     children: BookmarkItem[]
   ) => {
-    const newSelectedFolders = new Set(selectedFolders)
-    const newSelectedUrls = new Set(selectedUrls)
+    const folderSet = new Set(selectedFolders)
+    const urlSet = new Set(selectedUrls)
 
     const updateFolderAndChildren = (
       items: BookmarkItem[],
@@ -219,79 +201,68 @@ function IndexPopup() {
     ) => {
       items.forEach((item) => {
         if (item.children) {
-          // 如果是文件夹，更新文件夹状态并递归处理子项
           if (isSelected) {
-            newSelectedFolders.add(item.id)
+            folderSet.add(item.id)
           } else {
-            newSelectedFolders.delete(item.id)
+            folderSet.delete(item.id)
           }
           updateFolderAndChildren(item.children, isSelected)
         } else if (item.url) {
-          // 如果是书签，更新 URL 状态
           if (isSelected) {
-            newSelectedUrls.add(item.url)
+            urlSet.add(item.url)
           } else {
-            newSelectedUrls.delete(item.url)
+            urlSet.delete(item.url)
           }
         }
       })
     }
 
-    const isSelected = !selectedFolders.has(folderId)
+    const isSelected = !folderSet.has(folderId)
     if (isSelected) {
-      newSelectedFolders.add(folderId)
+      folderSet.add(folderId)
     } else {
-      newSelectedFolders.delete(folderId)
+      folderSet.delete(folderId)
     }
 
     updateFolderAndChildren(children, isSelected)
 
-    setSelectedFolders(newSelectedFolders)
-    setSelectedUrls(newSelectedUrls)
-    // 保存新的选中状态
-    saveSelectionState(newSelectedUrls, newSelectedFolders, expandedFolders)
+    setSelectedFolders(Array.from(folderSet))
+    setSelectedUrls(Array.from(urlSet))
   }
 
   // 添加处理折叠/展开的函数
   const handleCollapsibleChange = (folderId: string, isOpen: boolean) => {
-    const newExpandedFolders = new Set(expandedFolders)
+    const expandedSet = new Set(expandedFolders)
     if (isOpen) {
-      newExpandedFolders.add(folderId)
+      expandedSet.add(folderId)
     } else {
-      newExpandedFolders.delete(folderId)
+      expandedSet.delete(folderId)
     }
-    setExpandedFolders(newExpandedFolders)
-    saveExpandedState(newExpandedFolders)
+    setExpandedFolders(Array.from(expandedSet))
   }
 
   // 修改 handleClearSelection，同时保留展开状态
   const handleClearSelection = () => {
-    setSelectedUrls(new Set())
-    setSelectedFolders(new Set())
-    saveSelectionState(new Set(), new Set(), expandedFolders)
+    setSelectedUrls([])
+    setSelectedFolders([])
+    saveSelectionState(new Set(), new Set(), new Set(expandedFolders))
   }
 
   // 添加检查文件夹是否应该被选中的函数
   const shouldFolderBeSelected = (items: BookmarkItem[]): boolean => {
     let hasUnselectedItem = false
 
-    if (items.length === 0) {
-      return false
-    }
-
     for (const item of items) {
       if (item.children) {
-        // 如果是文件夹，递归检查其子项
         if (
-          !selectedFolders.has(item.id) ||
+          !selectedFolders.includes(item.id) ||
           !shouldFolderBeSelected(item.children)
         ) {
           hasUnselectedItem = true
           break
         }
       } else if (item.url) {
-        // 如果是书签，检查是否被选中
-        if (!selectedUrls.has(item.url)) {
+        if (!selectedUrls.includes(item.url)) {
           hasUnselectedItem = true
           break
         }
@@ -311,7 +282,7 @@ function IndexPopup() {
           countItems(item.children)
         } else if (item.url) {
           totalCount++
-          if (selectedUrls.has(item.url)) {
+          if (selectedUrls.includes(item.url)) {
             checkedCount++
           }
         }
@@ -335,7 +306,7 @@ function IndexPopup() {
             {item.children ? (
               <Collapsible
                 className="mt-2"
-                open={expandedFolders.has(item.id)}
+                open={expandedFolders.includes(item.id)}
                 onOpenChange={(isOpen) =>
                   handleCollapsibleChange(item.id, isOpen)
                 }>
@@ -364,7 +335,7 @@ function IndexPopup() {
             ) : (
               <div className="flex gap-1 items-center pl-3">
                 <Checkbox
-                  checked={selectedUrls.has(item.url || "")}
+                  checked={selectedUrls.includes(item.url || "")}
                   onCheckedChange={() => handleCheckboxChange(item.url || "")}
                   className="mr-2"
                 />
@@ -421,7 +392,7 @@ function IndexPopup() {
             }`}>
             <img src={bing} alt="Bing" className="w-5 h-5" />
           </button>
-          {(selectedUrls.size > 0 || selectedFolders.size > 0) && (
+          {(selectedUrls.length > 0 || selectedFolders.length > 0) && (
             <button
               onClick={handleClearSelection}
               className="px-3 py-2 text-sm text-white bg-red-500 rounded-md hover:bg-red-600">
