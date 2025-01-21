@@ -198,6 +198,31 @@ function IndexPopup() {
     return !hasUnselectedItem
   }
 
+  const getFolderState = (items: BookmarkItem[]): boolean | "indeterminate" => {
+    let checkedCount = 0
+    let totalCount = 0
+
+    const countItems = (items: BookmarkItem[]) => {
+      items.forEach((item) => {
+        if (item.children) {
+          countItems(item.children)
+        } else if (item.url) {
+          totalCount++
+          if (selectedUrls.has(item.url)) {
+            checkedCount++
+          }
+        }
+      })
+    }
+
+    countItems(items)
+
+    if (totalCount === 0) return false
+    if (checkedCount === 0) return false
+    if (checkedCount === totalCount) return true // 改为返回 boolean
+    return "indeterminate"
+  }
+
   // 修改渲染书签的函数，添加自动检查父文件夹状态的逻辑
   const renderBookmarks = (items: BookmarkItem[]) => {
     return (
@@ -212,10 +237,7 @@ function IndexPopup() {
                   </CollapsibleTrigger>
                   <Checkbox
                     className="mr-2"
-                    checked={
-                      selectedFolders.has(item.id) ||
-                      shouldFolderBeSelected(item.children)
-                    }
+                    checked={getFolderState(item.children)}
                     disabled={item.children?.length === 0}
                     onCheckedChange={() =>
                       handleFolderCheckboxChange(item.id, item.children || [])
