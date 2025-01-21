@@ -26,6 +26,7 @@ function IndexPopup() {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [searchKeyword, setSearchKeyword] = useState("")
   const [searchEngine, setSearchEngine] = useState<"google" | "bing">("google")
+  const [isComposing, setIsComposing] = useState(false)
 
   // 获取所有书签URL
   const getAllBookmarkUrls = (
@@ -116,7 +117,7 @@ function IndexPopup() {
   }
 
   const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && searchKeyword.trim()) {
+    if (e.key === "Enter" && !isComposing && searchKeyword.trim()) {
       const searchUrl = constructSearchUrl(
         searchKeyword,
         selectedUrls,
@@ -336,6 +337,8 @@ function IndexPopup() {
             value={searchKeyword}
             onChange={(e) => setSearchKeyword(e.target.value)}
             onKeyDown={handleSearch}
+            onCompositionStart={() => setIsComposing(true)}
+            onCompositionEnd={() => setIsComposing(false)}
             placeholder="输入关键词后按回车搜索..."
             className="flex-1 p-2 rounded-md border"
           />
