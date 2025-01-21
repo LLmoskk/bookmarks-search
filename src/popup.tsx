@@ -80,23 +80,47 @@ function IndexPopup() {
     loadSelectionState()
   }, [])
 
-  // 修改处理搜索的函数
+  const constructSearchUrl = (
+    keyword: string,
+    selectedUrls: Set<string>,
+    engine: "google" | "bing"
+  ): string => {
+    const siteQuery = Array.from(selectedUrls)
+      .map((url) => {
+        const domain = new URL(url).hostname
+        return `site:${domain}`
+      })
+      .join(" OR ")
+    const searchQuery = `${keyword} ${siteQuery}`
+    return engine === "google"
+      ? `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`
+      : `https://www.bing.com/search?q=${encodeURIComponent(searchQuery)}`
+  }
+
+  const executeSearch = (engine: "google" | "bing") => {
+    if (searchKeyword.trim()) {
+      const searchUrl = constructSearchUrl(searchKeyword, selectedUrls, engine)
+      window.open(searchUrl, "_blank")
+    }
+  }
+
   const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && searchKeyword.trim()) {
-      const siteQuery = Array.from(selectedUrls)
-        .map((url) => {
-          const domain = new URL(url).hostname
-          return `site:${domain}`
-        })
-        .join(" OR ")
-
-      const searchQuery = `${searchKeyword} ${siteQuery}`
-      const searchUrl =
-        searchEngine === "google"
-          ? `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`
-          : `https://www.bing.com/search?q=${encodeURIComponent(searchQuery)}`
-
+      const searchUrl = constructSearchUrl(
+        searchKeyword,
+        selectedUrls,
+        searchEngine
+      )
       window.open(searchUrl, "_blank")
+    }
+  }
+
+  // 修改搜索引擎按钮的点击处理函数
+  const handleSearchEngineClick = (engine: "google" | "bing") => {
+    if (searchEngine === engine) {
+      executeSearch(engine)
+    } else {
+      setSearchEngine(engine)
     }
   }
 
@@ -290,14 +314,14 @@ function IndexPopup() {
             className="flex-1 p-2 rounded-md border"
           />
           <button
-            onClick={() => setSearchEngine("google")}
+            onClick={() => handleSearchEngineClick("google")}
             className={`p-2 rounded-md border ${
               searchEngine === "google" ? "bg-blue-100 border-blue-300" : ""
             }`}>
             <img src={google} alt="Google" className="w-5 h-5" />
           </button>
           <button
-            onClick={() => setSearchEngine("bing")}
+            onClick={() => handleSearchEngineClick("bing")}
             className={`p-2 rounded-md border ${
               searchEngine === "bing" ? "bg-blue-100 border-blue-300" : ""
             }`}>
