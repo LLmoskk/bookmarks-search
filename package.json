@@ -1,8 +1,8 @@
 {
-  "name": "favorites-search",
-  "displayName": "Favorites search",
+  "name": "bookmarks-search",
+  "displayName": "Bookmarks search",
   "version": "0.0.1",
-  "description": "Browser favorites based keyword search",
+  "description": "Browser bookmarks based keyword search",
   "author": "1398145450@qq.com",
   "scripts": {
     "dev": "plasmo dev",

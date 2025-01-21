@@ -2,10 +2,9 @@
 
 一个帮助你在浏览器收藏夹中快速搜索的浏览器插件。通过关键词，你可以在指定的网站范围内快速找到所查询的关键词。
 
-A browser plug-in that helps you quickly search in browser favorites. By keywords, you can quickly find the keywords you are looking for within the specified website range.
+A browser plug-in that helps you quickly search in browser bookmarks. By keywords, you can quickly find the keywords you are looking for within the specified website range.
 
 ![20250121112423_rec_](https://github.com/user-attachments/assets/07ae4c46-e2eb-4d73-81b2-85698cff4d4b)
-
 
 ## 开发指南 / Development Guide
 
