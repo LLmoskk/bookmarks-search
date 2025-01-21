@@ -3,6 +3,7 @@ import type { PlasmoCSConfig } from "plasmo"
 import { useEffect, useState } from "react"
 
 import { sendToBackground } from "@plasmohq/messaging"
+import { Storage } from "@plasmohq/storage"
 import { useStorage } from "@plasmohq/storage/hook"
 
 import "./sidebar-base.css"
@@ -49,7 +50,16 @@ const Sidebar = () => {
     Array<{ url: string; title: string }>
   >([])
   const [currentKeyword, setCurrentKeyword] = useState("")
-  const [allBookmarks] = useStorage<BookmarkItem[]>("allBookmarks", [])
+  const storage = new Storage({
+    area: "local"
+  })
+  const [allBookmarks] = useStorage(
+    {
+      key: "allBookmarks",
+      instance: storage
+    },
+    []
+  )
   const [isLoading, setIsLoading] = useState(false)
   const [isExpanded, setIsExpanded] = useState(true)
   const [sidebarEnabled] = useStorage<boolean>("sidebarEnabled", true)

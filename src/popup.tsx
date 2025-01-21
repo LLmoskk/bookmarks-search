@@ -10,6 +10,7 @@ import google from "data-base64:~assets/google.png"
 import { ChevronRight } from "lucide-react"
 import { useEffect, useState } from "react"
 
+import { Storage } from "@plasmohq/storage"
 import { useStorage } from "@plasmohq/storage/hook"
 
 import "@/styles/style.css"
@@ -29,48 +30,76 @@ function IndexPopup() {
   const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set())
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [searchKeyword, setSearchKeyword] = useState("")
-  const [searchEngine, setSearchEngine] = useState<"google" | "bing">("google")
   const [isComposing, setIsComposing] = useState(false)
-  const [persistedUrls, setPersistedUrls] = useStorage<string[]>(
-    "selectedUrls",
+  const storage = new Storage({
+    area: "local"
+  })
+  const [persistedUrls, setPersistedUrls] = useStorage(
+    {
+      key: "selectedUrls",
+      instance: storage
+    },
     []
   )
-  const [persistedFolders, setPersistedFolders] = useStorage<string[]>(
-    "selectedFolders",
+  const [persistedFolders, setPersistedFolders] = useStorage(
+    {
+      key: "selectedFolders",
+      instance: storage
+    },
     []
   )
-  const [persistedExpanded, setPersistedExpanded] = useStorage<string[]>(
-    "expandedFolders",
+  const [expandedFoldersStorage, setPersistedExpanded] = useStorage(
+    {
+      key: "expandedFolders",
+      instance: storage
+    },
     []
   )
-  const [persistedBookmarks, setPersistedBookmarks] = useStorage<
-    { url: string; title: string }[]
-  >("allBookmarks", [])
-  const [sidebarEnabled, setSidebarEnabled] = useStorage<boolean>(
-    "sidebarEnabled",
+  const [allBookmarks, setAllBookmarks] = useStorage(
+    {
+      key: "allBookmarks",
+      instance: storage
+    },
+    []
+  )
+  const [sidebarEnabled, setSidebarEnabled] = useStorage(
+    {
+      key: "sidebarEnabled",
+      instance: storage
+    },
     true
+  )
+  const [searchEngine, setSearchEngine] = useStorage(
+    {
+      key: "searchEngine",
+      instance: storage
+    },
+    "google" as "google" | "bing"
   )
 
   // 获取所有书签URL
   const getAllBookmarkUrls = (
     items: BookmarkItem[]
   ): { url: string; title: string }[] => {
-    let urls: { url: string; title: string }[] = []
-    items.forEach((item) => {
-      if (item.url) {
-        // 确保 URL 和标题都存在且有效
-        if (item.url.trim() && item.title) {
-          urls.push({
-            url: item.url,
-            title: item.title || item.url // 如果标题为空则使用 URL
-          })
-        }
+    const urls: { url: string; title: string }[] = []
+
+    const processBookmark = (item: BookmarkItem) => {
+      if (item.url && item.url.startsWith("http")) {
+        // 只保存必要的数据，并限制标题长度
+        urls.push({
+          url: item.url,
+          title: (item.title || item.url).slice(0, 100) // 限制标题长度为100字符
+        })
       }
       if (item.children) {
-        urls = urls.concat(getAllBookmarkUrls(item.children))
+        item.children.forEach(processBookmark)
       }
-    })
-    return urls
+    }
+
+    items.forEach(processBookmark)
+
+    // 如果数据量仍然太大，可以限制保存的书签数量
+    return urls.slice(0, 1000) // 限制最多保存1000个书签
   }
 
   // 修改保存展开状态的函数
@@ -102,20 +131,37 @@ function IndexPopup() {
   }, [persistedFolders])
 
   useEffect(() => {
-    if (persistedExpanded) {
-      setExpandedFolders(new Set(persistedExpanded))
+    if (expandedFoldersStorage) {
+      setExpandedFolders(new Set(expandedFoldersStorage))
     }
-  }, [persistedExpanded])
+  }, [expandedFoldersStorage])
 
   // 修改初始化 useEffect
   useEffect(() => {
-    chrome.bookmarks.getTree(async (bookmarkTreeNodes) => {
-      const bookmarkNodes = bookmarkTreeNodes[0].children || []
-      setBookmarks(bookmarkNodes)
+    console.log("浏览器环境:", navigator.userAgent)
+    console.log("Chrome API 可用性:", !!chrome.bookmarks)
+    console.log("Browser API 可用性:", !!(window as any).browser?.bookmarks)
 
-      // 获取所有书签 URL 并保存
-      const allBookmarks = getAllBookmarkUrls(bookmarkNodes)
-      setPersistedBookmarks(allBookmarks)
+    const bookmarksAPI = chrome.bookmarks || (window as any).browser?.bookmarks
+
+    if (!bookmarksAPI) {
+      console.error("无法获取书签 API，请检查浏览器类型和权限设置")
+      return
+    }
+
+    bookmarksAPI.getTree(async (bookmarkTreeNodes) => {
+      try {
+        const bookmarkNodes = bookmarkTreeNodes[0].children || []
+        console.log("成功获取书签树:", bookmarkNodes)
+        setBookmarks(bookmarkNodes)
+
+        const allBookmarks = getAllBookmarkUrls(bookmarkNodes)
+        console.log("处理后的书签列表数量:", allBookmarks.length)
+
+        setAllBookmarks(allBookmarks)
+      } catch (error) {
+        console.error("处理书签数据时出错:", error)
+      }
     })
   }, [])
 
@@ -338,12 +384,13 @@ function IndexPopup() {
       </div>
     )
   }
-
   return (
     <div className="p-4 w-[400px] max-h-[600px] overflow-auto">
       <div className="mb-4 space-y-2">
         <div className="flex justify-between items-center mb-2">
-          <label className="text-sm text-gray-600">搜索时在侧边栏同步基于全部收藏夹搜索</label>
+          <label className="text-sm text-gray-600">
+            搜索时在侧边栏同步基于全部收藏夹搜索
+          </label>
           <Switch
             checked={sidebarEnabled}
             onCheckedChange={setSidebarEnabled}
