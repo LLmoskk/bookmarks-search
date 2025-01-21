@@ -4,6 +4,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger
 } from "@/components/ui/collapsible"
+import { Switch } from "@/components/ui/switch"
 import bing from "data-base64:~assets/bing.png"
 import google from "data-base64:~assets/google.png"
 import { ChevronRight } from "lucide-react"
@@ -45,6 +46,10 @@ function IndexPopup() {
   const [persistedBookmarks, setPersistedBookmarks] = useStorage<
     { url: string; title: string }[]
   >("allBookmarks", [])
+  const [sidebarEnabled, setSidebarEnabled] = useStorage<boolean>(
+    "sidebarEnabled",
+    true
+  )
 
   // 获取所有书签URL
   const getAllBookmarkUrls = (
@@ -337,6 +342,13 @@ function IndexPopup() {
   return (
     <div className="p-4 w-[400px] max-h-[600px] overflow-auto">
       <div className="mb-4 space-y-2">
+        <div className="flex justify-between items-center mb-2">
+          <label className="text-sm text-gray-600">搜索时在侧边栏同步基于全部收藏夹搜索</label>
+          <Switch
+            checked={sidebarEnabled}
+            onCheckedChange={setSidebarEnabled}
+          />
+        </div>
         <div className="flex gap-2 items-center">
           <input
             type="text"
@@ -345,7 +357,7 @@ function IndexPopup() {
             onKeyDown={handleSearch}
             onCompositionStart={() => setIsComposing(true)}
             onCompositionEnd={() => setIsComposing(false)}
-            placeholder="输入关键词后按回车搜索..."
+            placeholder="输入后按回车（Enter）搜索"
             className="flex-1 p-2 rounded-md border"
           />
           <button
