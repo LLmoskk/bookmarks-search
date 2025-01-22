@@ -62,7 +62,13 @@ const Sidebar = () => {
   )
   const [isLoading, setIsLoading] = useState(false)
   const [isExpanded, setIsExpanded] = useState(true)
-  const [sidebarEnabled] = useStorage<boolean>("sidebarEnabled", true)
+  const [sidebarEnabled] = useStorage<boolean>(
+    {
+      key: "sidebarEnabled",
+      instance: storage
+    },
+    true
+  )
 
   const fetchSearchResults = async (
     keyword: string,
