@@ -5,6 +5,7 @@ import {
   CollapsibleTrigger
 } from "@/components/ui/collapsible"
 // import { Switch } from "@/components/ui/switch"
+import { useDebounce } from "ahooks"
 import bing from "data-base64:~assets/bing.png"
 import google from "data-base64:~assets/google.png"
 import { ChevronRight } from "lucide-react"
@@ -15,6 +16,7 @@ import { useStorage } from "@plasmohq/storage/hook"
 
 import "@/styles/style.css"
 
+import { cn } from "./lib/utils"
 import { constructSearchUrl } from "./utils"
 
 type BookmarkItem = {
@@ -28,6 +30,8 @@ function IndexPopup() {
   const [bookmarks, setBookmarks] = useState<BookmarkItem[]>([])
   const [searchKeyword, setSearchKeyword] = useState("")
   const [isComposing, setIsComposing] = useState(false)
+  const [filterKeywordInput, setFilterKeywordInput] = useState("")
+  const filterKeyword = useDebounce(filterKeywordInput, { wait: 300 })
 
   const storage = new Storage({
     area: "local"
@@ -56,6 +60,11 @@ function IndexPopup() {
       instance: storage
     },
     []
+  )
+
+  // 添加一个状态来保存filter 之前的展开折叠状态
+  const [userExpandedFolders, setUserExpandedFolders] = useState<Set<string>>(
+    new Set()
   )
 
   const [allBookmarks, setAllBookmarks] = useStorage(
@@ -232,12 +241,16 @@ function IndexPopup() {
   // 添加处理折叠/展开的函数
   const handleCollapsibleChange = (folderId: string, isOpen: boolean) => {
     const expandedSet = new Set(expandedFolders)
+    const userExpandedSet = new Set(userExpandedFolders)
     if (isOpen) {
       expandedSet.add(folderId)
+      userExpandedSet.add(folderId)
     } else {
       expandedSet.delete(folderId)
+      userExpandedSet.delete(folderId)
     }
     setExpandedFolders(Array.from(expandedSet))
+    setUserExpandedFolders(userExpandedSet)
   }
 
   // 修改 handleClearSelection，同时保留展开状态
@@ -272,7 +285,53 @@ function IndexPopup() {
     return "indeterminate"
   }
 
-  // 修改渲染书签的函数，添加展开状态控制
+  // 过滤书签的函数
+  const filterBookmarks = (items: BookmarkItem[]): BookmarkItem[] => {
+    if (!filterKeyword.trim()) {
+      // 当没有筛选关键词时，恢复到用户之前手动设置的展开状态
+      setExpandedFolders(Array.from(userExpandedFolders))
+      return items
+    }
+
+    const keyword = filterKeyword.toLowerCase()
+    const matchedFolderIds = new Set<string>()
+
+    const filterItem = (item: BookmarkItem): BookmarkItem | null => {
+      if (item.children) {
+        const filteredChildren = item.children
+          .map(filterItem)
+          .filter((child): child is BookmarkItem => child !== null)
+
+        const titleMatches = item.title.toLowerCase().includes(keyword)
+
+        if (filteredChildren.length > 0 || titleMatches) {
+          // 如果文件夹包含匹配项或文件夹名称匹配，将其 ID 添加到匹配集合中
+          matchedFolderIds.add(item.id)
+          return { ...item, children: filteredChildren }
+        }
+      } else if (
+        item.title.toLowerCase().includes(keyword) ||
+        (item.url && item.url.toLowerCase().includes(keyword))
+      ) {
+        return item
+      }
+
+      return null
+    }
+
+    const filteredItems = items
+      .map(filterItem)
+      .filter((item): item is BookmarkItem => item !== null)
+
+    // 更新展开的文件夹列表，添加所有包含匹配项的文件夹
+    const newExpandedFolders = new Set(expandedFolders)
+    matchedFolderIds.forEach((id) => newExpandedFolders.add(id))
+    setExpandedFolders(Array.from(newExpandedFolders))
+
+    return filteredItems
+  }
+
+  // 渲染书签的函数，添加展开状态控制
   const renderBookmarks = (items: BookmarkItem[]) => {
     return (
       <div className="space-y-2">
@@ -318,7 +377,18 @@ function IndexPopup() {
                   href={item.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block overflow-hidden text-blue-600 truncate whitespace-nowrap text-ellipsis hover:text-blue-800 hover:underline">
+                  className={cn(
+                    "block overflow-hidden text-blue-600 truncate whitespace-nowrap text-ellipsis hover:text-blue-800 hover:underline",
+                    filterKeyword.trim() &&
+                      (item.title
+                        .toLowerCase()
+                        .includes(filterKeyword.toLowerCase()) ||
+                        (item.url &&
+                          item.url
+                            .toLowerCase()
+                            .includes(filterKeyword.toLowerCase()))) &&
+                      "border-2 border-blue-300 rounded-md px-2"
+                  )}>
                   {!item.title || item.title.trim() === ""
                     ? item.url
                     : item.title}
@@ -330,6 +400,8 @@ function IndexPopup() {
       </div>
     )
   }
+
+
   return (
     <div className="p-4 w-[400px] max-h-[600px] overflow-auto">
       <div className="mb-4 space-y-2">
@@ -355,16 +427,18 @@ function IndexPopup() {
           />
           <button
             onClick={() => handleSearchEngineClick("google")}
-            className={`p-2 rounded-md border ${
-              searchEngine === "google" ? "bg-blue-100 border-blue-300" : ""
-            }`}>
+            className={cn(
+              "p-2 rounded-md border",
+              searchEngine === "google" && "bg-blue-100 border-blue-300"
+            )}>
             <img src={google} alt="Google" className="w-5 h-5" />
           </button>
           <button
             onClick={() => handleSearchEngineClick("bing")}
-            className={`p-2 rounded-md border ${
+            className={cn(
+              "p-2 rounded-md border",
               searchEngine === "bing" ? "bg-blue-100 border-blue-300" : ""
-            }`}>
+            )}>
             <img src={bing} alt="Bing" className="w-5 h-5" />
           </button>
           {(selectedUrls.length > 0 || selectedFolders.length > 0) && (
@@ -376,7 +450,18 @@ function IndexPopup() {
           )}
         </div>
       </div>
-      <div>{renderBookmarks(bookmarks)}</div>
+      <div className="mb-4">
+        <input
+          type="text"
+          value={filterKeywordInput}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            setFilterKeywordInput(e.target.value)
+          }
+          placeholder="筛选书签（支持标题和网址）"
+          className="w-full p-2 rounded-md border"
+        />
+      </div>
+      <div>{renderBookmarks(filterBookmarks(bookmarks))}</div>
     </div>
   )
 }
