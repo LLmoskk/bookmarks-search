@@ -331,6 +331,11 @@ function IndexPopup() {
     return filteredItems
   }
 
+  // 获取当前语言环境的消息
+  const getMessage = (key: string) => {
+    return chrome.i18n.getMessage(key) || key
+  }
+
   // 渲染书签的函数，添加展开状态控制
   const renderBookmarks = (items: BookmarkItem[]) => {
     return (
@@ -358,7 +363,7 @@ function IndexPopup() {
                   />
                   <span className="font-medium text-gray-700">
                     {!item.title || item.title.trim() === ""
-                      ? "未命名"
+                      ? getMessage("unnamed")
                       : item.title}
                   </span>
                 </div>
@@ -422,7 +427,7 @@ function IndexPopup() {
             onKeyDown={handleSearch}
             onCompositionStart={() => setIsComposing(true)}
             onCompositionEnd={() => setIsComposing(false)}
-            placeholder="输入后按回车（Enter）搜索"
+            placeholder={getMessage("searchPlaceholder")}
             className="flex-1 p-2 rounded-md border"
           />
           <button
@@ -445,7 +450,7 @@ function IndexPopup() {
             <button
               onClick={handleClearSelection}
               className="px-3 py-2 text-sm text-white bg-red-500 rounded-md hover:bg-red-600">
-              清空选择
+              {getMessage("clearSelection")}
             </button>
           )}
         </div>
@@ -457,7 +462,7 @@ function IndexPopup() {
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             setFilterKeywordInput(e.target.value)
           }
-          placeholder="筛选书签（支持标题和网址）"
+          placeholder={getMessage("filterPlaceholder")}
           className="w-full p-2 rounded-md border"
         />
       </div>

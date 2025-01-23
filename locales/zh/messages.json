@@ -1,0 +1,14 @@
+{
+  "searchPlaceholder": {
+    "message": "输入后按回车（Enter）搜索"
+  },
+  "filterPlaceholder": {
+    "message": "筛选书签（支持标题和网址）"
+  },
+  "clearSelection": {
+    "message": "清空选择"
+  },
+  "unnamed": {
+    "message": "未命名"
+  }
+}

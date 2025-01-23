@@ -43,6 +43,7 @@
   "manifest": {
     "permissions": [
       "bookmarks"
-    ]
+    ],
+    "default_locale": "zh"
   }
 }

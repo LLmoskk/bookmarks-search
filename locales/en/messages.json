@@ -1,0 +1,14 @@
+{
+  "searchPlaceholder": {
+    "message": "Press Enter to search"
+  },
+  "filterPlaceholder": {
+    "message": "Filter bookmarks (title and URL)"
+  },
+  "clearSelection": {
+    "message": "Clear Selection"
+  },
+  "unnamed": {
+    "message": "Unnamed"
+  }
+}
