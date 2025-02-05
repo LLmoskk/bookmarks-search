@@ -8,6 +8,7 @@ import {
 import { useDebounce } from "ahooks"
 import bing from "data-base64:~assets/bing.png"
 import google from "data-base64:~assets/google.png"
+import imgError from "data-base64:~assets/img-error.png"
 import { ChevronRight } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -336,6 +337,10 @@ function IndexPopup() {
     return chrome.i18n.getMessage(key) || key
   }
 
+  const handleImageError = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    event.currentTarget.src = imgError // 设置默认图片
+  }
+
   // 渲染书签的函数，添加展开状态控制
   const renderBookmarks = (items: BookmarkItem[]) => {
     return (
@@ -376,7 +381,11 @@ function IndexPopup() {
                 <Checkbox
                   checked={selectedUrls.includes(item.url || "")}
                   onCheckedChange={() => handleCheckboxChange(item.url || "")}
-                  className="mr-2"
+                />
+                <img
+                  src={`https://www.google.com/s2/favicons?domain=${new URL(item.url).hostname}&sz=32`}
+                  className="mx-1 w-4 h-4"
+                  onError={handleImageError}
                 />
                 <a
                   href={item.url}
@@ -405,7 +414,6 @@ function IndexPopup() {
       </div>
     )
   }
-
 
   return (
     <div className="p-4 w-[400px] max-h-[600px] overflow-auto">
@@ -463,7 +471,7 @@ function IndexPopup() {
             setFilterKeywordInput(e.target.value)
           }
           placeholder={getMessage("filterPlaceholder")}
-          className="w-full p-2 rounded-md border"
+          className="p-2 w-full rounded-md border"
         />
       </div>
       <div>{renderBookmarks(filterBookmarks(bookmarks))}</div>
