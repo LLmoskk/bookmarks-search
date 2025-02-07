@@ -386,6 +386,8 @@ function IndexPopup() {
                   src={`https://www.google.com/s2/favicons?domain=${new URL(item.url).hostname}&sz=32`}
                   className="mx-1 w-4 h-4"
                   onError={handleImageError}
+                  loading="lazy" // 设置图片懒加载以提高性能
+                  referrerPolicy="no-referrer" // 设置引用策略以保护隐私
                 />
                 <a
                   href={item.url}
